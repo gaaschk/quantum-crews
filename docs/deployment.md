@@ -22,6 +22,8 @@ python3 install-mini.py \
   --repo gaaschk/quantum-crews
 ```
 
+On a headless mini, the installer falls back to the user launch domain if no GUI domain exists. This starts the pipeline now. Cold-boot startup without a login requires the separately generated system service, installed once with `deploy/enable-boot.sh` under administrator authority. The service runs as the normal deployment user, not root.
+
 The installer creates `~/Library/LaunchAgents/com.quantumhorizon.quantum-crews.plist`, the deployment root, random database/runtime credentials and a stable controller copy. Updating the controller itself requires reinstalling it; application changes arrive through trusted main revisions. Root and secret-file permissions are private. The Git clone, immutable release folders, backups and logs are inside the deployment root.
 
 The service uses Compose project `quantum-crews-deploy` and its own database volume. Only the web port is published, on `127.0.0.1:3180`. API, runtime and PostgreSQL are on the internal Docker network. Live execution and simulation are disabled by default in this deployment. Public DNS/tunnel routing is a separate step requiring an explicit hostname decision and HTTPS settings.

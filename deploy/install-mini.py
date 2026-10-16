@@ -4,6 +4,7 @@ import argparse
 import os
 from pathlib import Path
 import platform
+import pwd
 import plistlib
 import re
 import shutil
@@ -22,12 +23,20 @@ shutil.copy2(Path(__file__).with_name('manage.py'),root/'manage.py')
 subprocess.run([sys.executable,str(root/'manage.py'),'init','--root',str(root)],check=True)
 label='com.quantumhorizon.quantum-crews'
 plist=Path.home()/'Library/LaunchAgents'/f'{label}.plist'
-config={'Label':label,'ProgramArguments':[sys.executable,str(root/'manage.py'),'once','--root',str(root),'--repo',args.repo],
+interpreter='/opt/homebrew/bin/python3' if Path('/opt/homebrew/bin/python3').exists() else sys.executable
+config={'Label':label,'ProgramArguments':[interpreter,str(root/'manage.py'),'once','--root',str(root),'--repo',args.repo],
  'EnvironmentVariables':{'PATH':'/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin'},'RunAtLoad':True,'StartInterval':60,
  'StandardOutPath':str(root/'deploy.log'),'StandardErrorPath':str(root/'deploy.err')}
 plist.parent.mkdir(parents=True,exist_ok=True)
 plist.write_bytes(plistlib.dumps(config));os.chmod(plist,0o600)
 domain=f'gui/{os.getuid()}'
+if subprocess.run(['launchctl','print',domain],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode:
+ domain=f'user/{os.getuid()}'
+boot=dict(config,UserName=pwd.getpwuid(os.getuid()).pw_name,GroupName='staff')
+boot['EnvironmentVariables']=dict(config['EnvironmentVariables'],HOME=str(Path.home()))
+(root/'boot-service.plist').write_bytes(plistlib.dumps(boot))
 subprocess.run(['launchctl','bootout',domain,str(plist)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 subprocess.run(['launchctl','bootstrap',domain,str(plist)],check=True)
+print('Launch domain:',domain)
+print('For headless cold-boot startup, install the generated boot-service.plist with deploy/enable-boot.sh.')
 print('Installed',label,'for',args.repo,'at',root)
