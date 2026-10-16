@@ -5,4 +5,4 @@ export async function api<T = unknown>(path: string, body?: unknown, method?: st
  return data;
 }
 export type Definition = {id:string;kind:"agent"|"task"|"crew";revision:number;name:string;spec:Record<string,unknown>;createdAt:string};
-export type Me = {user:{id:string;name:string;email:string};organizations:{id:string;name:string;role:string;personal:boolean}[];activeOrganizationId:string};
+export type Me = {user:{id:string;name:string;email:string;email_verified:boolean};organizations:{id:string;name:string;role:string;personal:boolean}[];activeOrganizationId:string;capabilities:{testMode:boolean;liveMode:boolean}};
