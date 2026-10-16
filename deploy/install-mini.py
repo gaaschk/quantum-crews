@@ -32,7 +32,10 @@ plist.write_bytes(plistlib.dumps(config));os.chmod(plist,0o600)
 domain=f'gui/{os.getuid()}'
 if subprocess.run(['launchctl','print',domain],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode:
  domain=f'user/{os.getuid()}'
+ config['LimitLoadToSessionType']='Background'
+ plist.write_bytes(plistlib.dumps(config))
 boot=dict(config,UserName=pwd.getpwuid(os.getuid()).pw_name,GroupName='staff')
+boot.pop('LimitLoadToSessionType',None)
 boot['EnvironmentVariables']=dict(config['EnvironmentVariables'],HOME=str(Path.home()))
 (root/'boot-service.plist').write_bytes(plistlib.dumps(boot))
 subprocess.run(['launchctl','bootout',domain,str(plist)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
