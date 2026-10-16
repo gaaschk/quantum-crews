@@ -1,7 +1,7 @@
 # Quantum Crews — architecture and implementation plan
 
 Status: P1 implemented and locally verified, including the approved smart-ai-router/CrewAI live check. See docs/p1-acceptance.md for evidence and limits; docs/p2-plan.md for the next iteration.
-Working repository name: quantum-crews. Local-only, no remote or deployment.
+Repository: gaaschk/quantum-crews (public, MIT). GitHub CI gates deployment to the Mac mini. The application remains private pending the P2 public-release gate.
 
 ## Product direction
 
@@ -37,7 +37,7 @@ Next.js/React + @xyflow/react -> Kotlin/Spring Boot API -> PostgreSQL canonical 
 
 The backend owns validation, authorization, proposal approval, version creation, dependency resolution, execution policy and durable run state. The UI owns forms, canvas layout, visual diffs and user intent; canvas positions are presentation metadata rather than execution semantics. The Python adapter translates immutable execution snapshots into CrewAI agents/tasks/crews and emits framework-neutral events. It cannot alter the registry. Secrets stay server-side and are referenced by identifier only.
 
-Use smart-orchestrator for AI authoring, planning and delegation; smart-worker for worker agents. Model gateway aliases are not capability guarantees. Validate the installed CrewAI version and actual gateway endpoint behavior before declaring compatibility. No direct provider fallback. Disable framework telemetry by default.
+Use smart-orchestrator for AI authoring, planning and delegation; smart-worker for worker agents. Model gateway aliases are not capability guarantees. Validate the installed CrewAI version and actual gateway endpoint behavior before declaring compatibility. Users may explicitly select a smart-ai-router connection or a supported direct-provider connection (OpenAI/Anthropic initially). Direct providers require explicit planner and worker models; smart-router retains smart-orchestrator and smart-worker aliases. Never silently fall back to another connection or platform credentials. Disable framework telemetry by default.
 
 Start with REST plus polling for runs. PostgreSQL leased jobs avoid an extra broker; retries require attempt IDs and fencing tokens. Do not automatically retry uncertain external side effects. A runtime adapter contract is sufficient now; a plugin marketplace is unnecessary.
 
@@ -81,9 +81,11 @@ Runs: queued -> running -> succeeded/failed/cancelled; later waiting_for_approva
 ## Phased MVP and acceptance
 
 1. Vertical slice: authenticated users, automatic Personal organization provisioning, many-to-many organization memberships, organization switching and enforced tenant isolation; manual agent form; PostgreSQL create/read/update and history/rollback; AI agent creation proposal using smart-orchestrator; field diff and editable approval; XYFlow crew assembly with manual tasks; sequential tool-free CrewAI execution through smart-worker; immutable snapshot and inspectable run. Include granular agent edit proposals and stale revision rejection. Manual authoring must remain usable when AI is unavailable.
-2. Complete authoring: manual and AI edit parity for tools, conditions, validators, triggers and flows; typed graph validation; dependency discovery/reuse; registered safe tools and policy enforcement; durable human approval/resume.
-3. Dynamic/hybrid: bounded registry selection, ephemeral assemblies, inspect/save promotion, policy and budget enforcement across planner and workers.
-4. Operational readiness: production identity integration and tenant isolation hardening, distributed leases/cancellation, sandboxed adapters, richer observability and another adapter proving neutral schemas.
+2. Public accounts and collaboration: verified signup/recovery, BYOK, reusable libraries, shared organizations and conflict-safe editing; public release gated on identity, abuse controls and credential-backed execution. See docs/p2-plan.md.
+3. Complete authoring: manual and AI edit parity for tools, conditions, validators, triggers and flows; typed graph validation; dependency discovery/reuse; registered safe tools and policy enforcement; durable human approval/resume.
+4. Safe software delivery: scoped repository tools, reviewable pull requests, QA artifacts, and human merge/release approval.
+5. Dynamic/hybrid: bounded registry selection, ephemeral assemblies, inspect/save promotion, policy and budget enforcement across planner and workers.
+6. Operational readiness: production identity integration and tenant isolation hardening, distributed leases/cancellation, sandboxed adapters, richer observability and another adapter proving neutral schemas.
 
 First-slice demonstration: create Analyst manually, save v1, edit to v2, inspect history; request Reviewer with AI, inspect/edit proposed fields, approve; place Analyst and Reviewer on canvas, assign two ordered tasks, save crew, execute, inspect per-task outputs and pinned revisions; edit agent while run is pending and verify snapshot unchanged; rollback agent and verify a new revision. Failures must remain visible rather than fabricated successes.
 
@@ -103,3 +105,29 @@ https://reactflow.dev/learn
 https://docs.spring.io/spring-boot/system-requirements.html
 
 Pin application dependency versions during scaffolding after checking compatibility. The working project name is local and has not been checked for trademark/domain availability. Confirm before creating a remote repository, publishing, deploying, transferring sensitive data, enabling consequential tools or making paid live model requests. Local scaffolding, installation and deterministic testing are within the requested scope.
+
+## Reference use case: software delivery crew
+
+A human supplies a product objective and constraints. The product owner works with design and architecture to turn a program increment (PI) into sprint stories with acceptance criteria, dependencies, and a definition of done. The scrum master/orchestrator owns sequencing, delegation, blockers, bounded rework, and handoffs. Developers produce reviewable code changes; QA tests acceptance criteria and returns evidence-backed failures; the product owner accepts deliverables or requests changes. Release work requires the configured human approval, followed by health checks and feedback into the next iteration.
+
+Handoffs carry versioned artifacts: PI brief, sprint backlog, story, design, architecture decision, implementation/PR, QA evidence, acceptance decision, and release evidence. A workflow specifies input/output contracts and references these artifacts by immutable revision. The orchestrator cannot approve its own deliverables, grant tools, merge changes, or deploy without the required authority. Distinguish the AI product-owner role's recommendation from a human's consequential approval. Failed QA returns to development with bounded retries; exhausted budgets, unresolved blockers, and ambiguous acceptance escalate to a human. Humans can inspect, edit, pause, or take over the flow.
+
+Use this as a reference scenario and later template, not a pretense that P1 supports repository tools or sprint automation. P2 validates manual definitions, shared artifacts, review decisions, identity, and model connections; later phases add typed flows, safe repository tools, approval/resume, and dynamic specialists. No autonomous modifications to Quantum Crews itself until those permissions and sandboxes exist.
+
+## Public signup and bring your own key (BYOK)
+
+Public users receive their own Personal organization atomically. Manual building requires no model key. Before public exposure, require verified email, account recovery, durable abuse controls, secure sessions, invitation identity checks, and tested tenant isolation. Cloudflare Access restricted to one email is no longer the intended product access model.
+
+Model connections accept either smart-ai-router or supported provider keys. Keys are write-only to clients, encrypted at rest with an operator-managed key outside the database, and excluded from logs, snapshots, events, proposals, and browser storage. Initial connections are private to their creator within the active organization; organization sharing needs explicit grants in a later increment. Only the backend resolves a permitted connection immediately before a model operation. Store connection ID, provider, selected models, and non-secret configuration in execution snapshots; never freeze the actual key there. Revocation before dispatch fails closed. Queued work cannot inherit another user's credentials. There is no platform-key fallback, including a runtime environment key. Server-wide live-disable and per-run budgets still apply to BYOK.
+
+Direct-provider support must use fixed server-approved endpoints to prevent SSRF; adding an endpoint is an operator-reviewed integration. Test planner structured-output compatibility separately from worker execution. Unit tests and synthetic gateway doubles establish safety contracts; live provider compatibility remains separately authorized. A connection saved successfully does not imply the key was validated or that execution is enabled.
+
+## PI delivery contract: pull requests and installable previews
+
+Every PI produces a pull request linked to its objective, sprint stories, acceptance criteria, design/architecture decisions, QA evidence, and product-owner review. Create a draft PR early and keep its title/body aligned with final scope. Smaller story PRs may feed a PI integration branch, but the PI has its own reviewable PR; incomplete scope is recorded explicitly rather than presented as completed. Implementation goes to a branch, not directly to main. Opening a PR does not authorize merging or deployment.
+
+The application presents a PI deliverable with Review PR, Download, Install preview, and Promote release. Bind every download and installation to the exact reviewed head SHA and successful required checks, never a moving branch name. Downloads include source archives and, when available, CI-built platform-specific packages with checksums, provenance, dependency licenses, and installation instructions. A changed head invalidates prior installation approval. Source downloads are not executable installation packages.
+
+Install preview requires an explicitly configured target (Mac mini first), permission, and approval bound to target, SHA, artifact digest, and expiry. The target controller verifies these independently, installs into a separate environment with distinct ports, database, credentials and organization context, and reports installation state, health, logs and installed revision. Do not give untrusted public PRs a production runner or secrets. PR preview builds run without production secrets; only trusted approved artifacts reach a target. Preview code has no access to production data or credentials and uses synthetic data unless a separate sanitized import is authorized. Failed installation leaves the current release intact. Uninstall cleans preview resources without deleting production state. Promotion requires product-owner review, configured human approval, merge, and successful main CI through the existing pipeline. Application rollback and database restoration remain separate operations.
+
+Delivery domain: PI → PR deliverable → immutable artifact manifest → approved installation request → target deployment. Record repository/PR identity, SHA, checks, artifact digest/platform, target, approver, attempt, health and rollback reference. The software delivery crew proposes these actions; a policy-enforced target controller performs them. Remote app installation is a later roadmap capability, not implemented by merely displaying a GitHub link.

@@ -53,6 +53,7 @@ services:
       QUANTUM_ALLOW_LIVE: ${QUANTUM_ALLOW_LIVE:-false}
       QUANTUM_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://127.0.0.1:3180}
       QUANTUM_COOKIE_NAME: qc_deployed_session
+      QUANTUM_CREDENTIAL_KEY: ${QUANTUM_CREDENTIAL_KEY:-}
       QUANTUM_SECURE_COOKIES: ${QUANTUM_SECURE_COOKIES:-false}
     depends_on:
       postgres: {condition: service_healthy}

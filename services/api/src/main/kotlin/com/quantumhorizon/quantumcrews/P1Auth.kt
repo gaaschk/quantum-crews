@@ -51,7 +51,7 @@ class P1Auth(val jdbc: JdbcTemplate, val tx: TransactionTemplate,
         if(write && actor.role=="viewer") fail(403,"This organization is read-only")
         return actor
     }
-    fun <T> scoped(actor: Actor, block: () -> T): T = tx.execute { jdbc.queryForObject("SELECT set_config('app.org_id', ?, true)",String::class.java,actor.orgId.toString()); block() }
+    fun <T> scoped(actor: Actor, block: () -> T): T = tx.execute { jdbc.queryForObject("SELECT set_config('app.org_id', ?, true)",String::class.java,actor.orgId.toString()); jdbc.queryForObject("SELECT set_config('app.user_id', ?, true)",String::class.java,actor.userId.toString()); block() }
     fun cookie(response: HttpServletResponse, value: String, maxAge: Int = 86400) { response.addHeader("Set-Cookie","$cookieName=$value; HttpOnly; SameSite=Strict; Path=/; Max-Age=$maxAge" + if(secureCookies) "; Secure" else "") }
     fun createSession(userId: UUID, response: HttpServletResponse) {
         val value=Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(32).also(random::nextBytes))
