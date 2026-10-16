@@ -1,0 +1,7 @@
+Quantum Crews original source code is licensed under the MIT License.
+Copyright (c) 2026 Quantum Horizon Innovations.
+
+Third-party dependencies, container base images, and the unmodified Gradle
+wrapper retain their own copyright notices and licenses. This project does
+not relicense third-party software. Dependency lockfiles identify the packages
+used; the Gradle wrapper is distributed under the Apache License, Version 2.0.

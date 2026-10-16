@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantum-crews.local/schemas/component/v1",
+  "title": "Quantum Crews framework-neutral component v1",
+  "type": "object",
+  "required": [
+    "organizationId",
+    "id",
+    "kind",
+    "schemaVersion",
+    "revision",
+    "name",
+    "spec",
+    "createdAt"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "kind": {
+      "enum": [
+        "agent",
+        "task",
+        "crew"
+      ]
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "spec": {
+      "type": "object"
+    },
+    "createdAt": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "agent"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "required": [
+              "role",
+              "instructions"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "role": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "instructions": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "task"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "required": [
+              "instructions",
+              "agentId",
+              "agentRevision"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "instructions": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agentRevision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "crew"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "required": [
+              "agents",
+              "tasks"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "agents": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "items": {
+                  "$ref": "#/$defs/reference"
+                }
+              },
+              "tasks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "items": {
+                  "$ref": "#/$defs/reference"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

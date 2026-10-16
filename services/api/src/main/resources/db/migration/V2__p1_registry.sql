@@ -1,0 +1,25 @@
+CREATE ROLE qc_app LOGIN PASSWORD 'qc_app_local_only' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+CREATE TABLE app_users(id uuid PRIMARY KEY, email text NOT NULL UNIQUE, name text NOT NULL, password_hash text NOT NULL, personal_org_id uuid NOT NULL, default_org_id uuid NOT NULL);
+CREATE TABLE organizations(id uuid PRIMARY KEY, name text NOT NULL, personal_owner_id uuid UNIQUE REFERENCES app_users(id));
+ALTER TABLE app_users ADD FOREIGN KEY(personal_org_id) REFERENCES organizations(id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE app_users ADD FOREIGN KEY(default_org_id) REFERENCES organizations(id) DEFERRABLE INITIALLY DEFERRED;
+CREATE TABLE memberships(user_id uuid REFERENCES app_users(id), org_id uuid REFERENCES organizations(id), role text NOT NULL CHECK(role IN ('owner','member','viewer')), PRIMARY KEY(user_id,org_id));
+CREATE TABLE sessions(token_hash text PRIMARY KEY, user_id uuid NOT NULL REFERENCES app_users(id), active_org_id uuid NOT NULL REFERENCES organizations(id), expires_at timestamptz NOT NULL);
+CREATE TABLE components(org_id uuid NOT NULL REFERENCES organizations(id), id uuid NOT NULL, kind text NOT NULL CHECK(kind IN ('agent','task','crew')), revision integer NOT NULL, PRIMARY KEY(org_id,id));
+CREATE TABLE component_versions(org_id uuid NOT NULL, component_id uuid NOT NULL, revision integer NOT NULL CHECK(revision>0), name text NOT NULL, spec jsonb NOT NULL, author_id uuid NOT NULL REFERENCES app_users(id), content_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(org_id,component_id,revision), FOREIGN KEY(org_id,component_id) REFERENCES components(org_id,id));
+CREATE TABLE proposals(org_id uuid NOT NULL REFERENCES organizations(id), id uuid NOT NULL, agent_id uuid, base_revision integer NOT NULL, proposed jsonb NOT NULL, patch jsonb NOT NULL, status text NOT NULL DEFAULT 'pending', simulated boolean NOT NULL, author_id uuid NOT NULL REFERENCES app_users(id), created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(org_id,id), FOREIGN KEY(org_id,agent_id) REFERENCES components(org_id,id));
+CREATE TABLE approvals(org_id uuid NOT NULL, id uuid NOT NULL, proposal_id uuid NOT NULL, user_id uuid NOT NULL REFERENCES app_users(id), content_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(org_id,id), FOREIGN KEY(org_id,proposal_id) REFERENCES proposals(org_id,id));
+CREATE TABLE runs(org_id uuid NOT NULL REFERENCES organizations(id), id uuid NOT NULL, requested_by uuid NOT NULL REFERENCES app_users(id), status text NOT NULL DEFAULT 'queued', mode text NOT NULL CHECK(mode IN ('test','live')), outputs jsonb NOT NULL DEFAULT '[]', usage jsonb NOT NULL DEFAULT '{}', error text, attempt_id uuid, lease_until timestamptz, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(org_id,id));
+CREATE TABLE run_snapshots(org_id uuid NOT NULL, run_id uuid NOT NULL, snapshot jsonb NOT NULL, content_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(org_id,run_id), FOREIGN KEY(org_id,run_id) REFERENCES runs(org_id,id));
+CREATE TABLE run_events(org_id uuid NOT NULL, run_id uuid NOT NULL, id bigserial, event_type text NOT NULL, detail jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(org_id,run_id,id), FOREIGN KEY(org_id,run_id) REFERENCES runs(org_id,id));
+GRANT USAGE ON SCHEMA public TO qc_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON app_users,organizations,memberships,sessions,components,component_versions,proposals,approvals,runs,run_snapshots,run_events TO qc_app;
+GRANT SELECT ON foundation_metadata TO qc_app;
+GRANT USAGE ON SEQUENCE run_events_id_seq TO qc_app;
+REVOKE UPDATE,DELETE ON component_versions,approvals,run_snapshots,run_events FROM qc_app;
+DO $$ DECLARE tab text; BEGIN FOREACH tab IN ARRAY ARRAY['components','component_versions','proposals','approvals','runs','run_snapshots','run_events'] LOOP
+ EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',tab);
+ EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY',tab);
+ EXECUTE format('CREATE POLICY tenant_isolation ON %I USING (org_id = nullif(current_setting(''app.org_id'',true),'''')::uuid) WITH CHECK (org_id = nullif(current_setting(''app.org_id'',true),'''')::uuid)',tab);
+END LOOP; END $$;
+CREATE INDEX runs_queue ON runs(org_id,status,created_at);

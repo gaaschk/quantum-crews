@@ -1,0 +1,19 @@
+name: quantum-crews
+services:
+  postgres:
+    image: postgres:17.6
+    environment:
+      POSTGRES_DB: quantum_crews
+      POSTGRES_USER: quantum_crews
+      POSTGRES_PASSWORD: quantum_crews_local_only
+    ports:
+      - "127.0.0.1:5440:5432"
+    volumes:
+      - quantum_crews_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantum_crews -d quantum_crews"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  quantum_crews_postgres:

@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.venv/
+node_modules/
+.next/
+build/
+.gradle/
+__pycache__/
+.DS_Store
+.idea/
+work/
+*.tsbuildinfo
+deployment.env
+github-token
+*.dump

@@ -1,0 +1,13 @@
+.git
+**/.env*
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/build
+**/.gradle
+.idea
+work
+outputs
+**/deployment.env
+**/github-token

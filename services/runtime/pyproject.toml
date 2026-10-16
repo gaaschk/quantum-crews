@@ -1,0 +1,14 @@
+[project]
+name = "quantum-crews-runtime"
+version = "0.1.0"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "crewai==1.15.28",
+    "fastapi==0.143.2",
+    "httpx==0.28.1",
+    "uvicorn==0.54.0",
+]
+
+[tool.uv]
+package = false
