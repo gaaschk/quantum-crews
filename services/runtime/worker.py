@@ -7,8 +7,9 @@ os.environ["OTEL_SDK_DISABLED"] = "true"
 os.environ["CREWAI_TELEMETRY_DISABLED"] = "true"
 
 class BudgetGateway:
-    def __init__(self, limits):
+    def __init__(self, limits, connection=None):
         self.limits = limits
+        self.connection = connection
         self.calls = self.tokens = 0
         self.poisoned = False
 
@@ -23,22 +24,48 @@ class BudgetGateway:
             raise RuntimeError("Model call or token limit exceeded")
         self.calls += 1
         try:
-            from openai import OpenAI
-            base_url = os.environ["SMART_ROUTER_BASE_URL"].rstrip("/")
-            if not base_url.endswith("/v1"):
-                base_url += "/v1"
-            client = OpenAI(base_url=base_url, api_key=os.environ["SMART_ROUTER_API_KEY"], max_retries=0,
-                            timeout=self.limits["timeoutSeconds"])
-            response = client.chat.completions.create(model=model, messages=messages, max_tokens=min(remaining, 4096), stream=False)
-            usage = response.usage
-            if usage is None or not isinstance(usage.total_tokens, int) or usage.total_tokens < 1:
-                raise RuntimeError("Gateway omitted trustworthy token usage")
-            self.tokens += usage.total_tokens
+            connection = self.connection
+            if not connection or connection.get("provider") not in {"smart-router", "openai", "anthropic"} or not connection.get("apiKey"):
+                raise RuntimeError("A user-owned model connection is required")
+            if connection["provider"] == "anthropic":
+                import httpx
+                system = "\n".join(str(item["content"]) for item in messages if item["role"] == "system")
+                chat = [{"role": item["role"], "content": item["content"]} for item in messages if item["role"] != "system"]
+                with httpx.Client(timeout=self.limits["timeoutSeconds"], follow_redirects=False) as client:
+                    response = client.post("https://api.anthropic.com/v1/messages", headers={"x-api-key": connection["apiKey"], "anthropic-version": "2023-06-01"},
+                        json={"model": model, "system": system, "messages": chat, "max_tokens": min(remaining, 4096)})
+                    response.raise_for_status()
+                    data = response.json()
+                usage = data["usage"]
+                used = usage["input_tokens"] + usage["output_tokens"]
+                if any(item.get("type") != "text" for item in data["content"]):
+                    raise RuntimeError("Unsupported provider output")
+                text = "".join(item["text"] for item in data["content"])
+            else:
+                from openai import OpenAI
+                base_url = "https://api.openai.com/v1"
+                if connection["provider"] == "smart-router":
+                    base_url = os.environ.get("SMART_ROUTER_BASE_URL", "https://smart-router.kevingaasch.com").rstrip("/")
+                    if not base_url.startswith("https://"):
+                        raise RuntimeError("Router endpoint must use HTTPS")
+                    if not base_url.endswith("/v1"):
+                        base_url += "/v1"
+                client = OpenAI(base_url=base_url, api_key=connection["apiKey"], max_retries=0, timeout=self.limits["timeoutSeconds"])
+                token_limit = {"max_tokens" if connection["provider"] == "smart-router" else "max_completion_tokens": min(remaining, 4096)}
+                response = client.chat.completions.create(model=model, messages=messages, **token_limit, stream=False)
+                used = response.usage.total_tokens if response.usage else None
+                if not isinstance(used, int) or isinstance(used, bool) or used < 1:
+                    raise RuntimeError("Provider omitted trustworthy token usage")
+                text = response.choices[0].message.content
+                if response.choices[0].message.tool_calls:
+                    raise RuntimeError("Unsupported provider output")
+            if not isinstance(used, int) or isinstance(used, bool) or used < 1:
+                raise RuntimeError("Provider omitted trustworthy token usage")
+            self.tokens += used
             if self.tokens > self.limits["maxTokens"]:
-                raise RuntimeError("Gateway exceeded token limit")
-            text = response.choices[0].message.content
-            if not text or response.choices[0].message.tool_calls:
-                raise RuntimeError("Gateway returned unsupported output")
+                raise RuntimeError("Provider exceeded token limit")
+            if not text:
+                raise RuntimeError("Provider returned empty output")
             return text
         except Exception:
             self.poisoned = True
@@ -49,9 +76,11 @@ class BudgetGateway:
 
 
 def execute(payload):
+    if payload["mode"] == "live" and not payload.get("connection"):
+        raise RuntimeError("A user-owned model connection is required")
     from crewai import Agent, BaseLLM, Crew, Process, Task
     from pydantic import PrivateAttr
-    gateway = BudgetGateway(payload["limits"])
+    gateway = BudgetGateway(payload["limits"], payload.get("connection"))
     simulated = payload["mode"] == "test"
     if simulated:
         if os.getenv("QUANTUM_TEST_MODE") != "true":
@@ -66,7 +95,7 @@ def execute(payload):
                 messages = [{"role": "user", "content": messages}]
             if simulated:
                 return "Final Answer: SIMULATED: " + payload["snapshot"]["input"][:1000]
-            return self._gateway.call("smart-worker", messages)
+            return self._gateway.call(payload["connection"]["workerModel"], messages)
     llm = RouterLLM(model="smart-worker")
     llm._gateway = gateway
     agents = {item["id"]: Agent(role=item["role"], goal=item["instructions"], backstory=item["name"], llm=llm,
@@ -87,8 +116,8 @@ def propose(payload):
         if os.getenv("QUANTUM_TEST_MODE") != "true":
             raise RuntimeError("Simulation is disabled")
         return {"name": "Reviewer", "role": "Quality reviewer", "instructions": payload["prompt"], "simulated": True}
-    gateway = BudgetGateway({"maxCalls": 1, "maxTokens": 16000, "timeoutSeconds": 50})
-    text = gateway.call("smart-orchestrator", [{"role": "system", "content": 'Return only a JSON object containing name, role, instructions (nonempty strings). Propose a team member. Never include permissions, tools, IDs, or other fields.'},
+    gateway = BudgetGateway({"maxCalls": 1, "maxTokens": 16000, "timeoutSeconds": 50}, payload.get("connection"))
+    text = gateway.call(payload["connection"]["plannerModel"], [{"role": "system", "content": 'Return only a JSON object containing name, role, instructions (nonempty strings). Propose a team member. Never include permissions, tools, IDs, or other fields.'},
         {"role": "user", "content": json.dumps({"request": payload["prompt"], "existing": payload.get("base")})}])
     result = json.loads(text)
     if set(result) != {"name", "role", "instructions"} or any(not isinstance(value, str) or not value.strip() or len(value) > 20000 for value in result.values()):

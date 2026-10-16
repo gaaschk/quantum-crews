@@ -51,17 +51,27 @@ class Limits(StrictModel):
     maxTokens: int = Field(ge=1, le=1000000)
     timeoutSeconds: int = Field(ge=1, le=300)
 
+class ModelConnection(StrictModel):
+    connectionId: str
+    provider: Literal["smart-router", "openai", "anthropic"]
+    keyRevision: int = Field(ge=1)
+    plannerModel: str = Field(min_length=1, max_length=120)
+    workerModel: str = Field(min_length=1, max_length=120)
+    apiKey: str = Field(min_length=8, max_length=4096, repr=False)
+
 class Execution(StrictModel):
     runId: str
     attemptId: str
     snapshot: Snapshot
     limits: Limits
     mode: Literal["test", "live"]
+    connection: ModelConnection | None = None
 
 class Proposal(StrictModel):
     prompt: str = Field(min_length=1, max_length=20000)
     base: dict | None = None
     mode: Literal["test", "live"]
+    connection: ModelConnection | None = None
 
 
 def authorize(authorization: str | None = Header(default=None)):
@@ -75,9 +85,12 @@ def invoke(kind: str, payload: dict, timeout: int):
         raise HTTPException(403, "Simulation is disabled")
     if payload["mode"] == "live" and os.getenv("QUANTUM_ALLOW_LIVE") != "true":
         raise HTTPException(403, "Live model calls are disabled")
+    if payload["mode"] == "live" and not payload.get("connection"):
+        raise HTTPException(403, "A user-owned model connection is required")
     key = (payload.get("runId"), payload.get("attemptId")) if kind == "execute" else None
     process = subprocess.Popen([sys.executable, str(Path(__file__).with_name("worker.py")), kind],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, start_new_session=True)
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, start_new_session=True,
+        env={key: value for key, value in os.environ.items() if not key.endswith("API_KEY") and key != "QUANTUM_RUNTIME_TOKEN"})
     with active_lock:
         now = time.monotonic()
         for old_key in list(cancelled):

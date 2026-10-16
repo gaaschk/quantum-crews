@@ -32,10 +32,10 @@ class ModelConnectionIsolationTests(@Autowired val auth:P1Auth,@Autowired val jd
  @Test fun `private connections are isolated even from other owners of the same organization`() {
   val user=UUID.randomUUID();val other=UUID.randomUUID();val org=UUID.randomUUID();val personal=UUID.randomUUID();val connection=UUID.randomUUID()
   auth.tx.execute {
-   jdbc.update("INSERT INTO app_users VALUES(?,?,?,?,?,?)",user,"$user@example.test","test","unused",org,org)
+   jdbc.update("INSERT INTO app_users(id,email,name,password_hash,personal_org_id,default_org_id) VALUES(?,?,?,?,?,?)",user,"$user@example.test","test","unused",org,org)
    jdbc.update("INSERT INTO organizations VALUES(?,'Personal',?)",org,user)
    jdbc.update("INSERT INTO memberships VALUES(?,?,'owner')",user,org)
-   jdbc.update("INSERT INTO app_users VALUES(?,?,?,?,?,?)",other,"$other@example.test","test","unused",personal,personal)
+   jdbc.update("INSERT INTO app_users(id,email,name,password_hash,personal_org_id,default_org_id) VALUES(?,?,?,?,?,?)",other,"$other@example.test","test","unused",personal,personal)
    jdbc.update("INSERT INTO organizations VALUES(?,'Personal',?)",personal,other)
    jdbc.update("INSERT INTO memberships VALUES(?,?,'owner')",other,personal)
    jdbc.update("INSERT INTO memberships VALUES(?,?,'owner')",other,org)

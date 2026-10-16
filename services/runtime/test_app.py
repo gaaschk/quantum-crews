@@ -9,6 +9,8 @@ from worker import BudgetGateway
 
 BODY = {"runId": "r", "attemptId": "a", "snapshot": {"agents": [{"id": "a", "revision": 1, "name": "Author", "role": "Writer", "instructions": "Summarize"}], "tasks": [{"id": "t", "revision": 1, "name": "Summary", "instructions": "Summarize notes", "agentId": "a"}], "input": "Meeting notes"}, "limits": {"maxCalls": 2, "maxTokens": 10000, "timeoutSeconds": 20}, "mode": "test"}
 
+CONNECTION = {"connectionId":"synthetic", "keyRevision":1, "provider":"openai", "apiKey":"synthetic-user-key", "plannerModel":"test-planner", "workerModel":"test-worker"}
+
 class RuntimeTest(unittest.TestCase):
     def setUp(self):
         self.env = patch.dict(os.environ, {"QUANTUM_RUNTIME_TOKEN": "test-secret", "QUANTUM_TEST_MODE": "true", "QUANTUM_ALLOW_LIVE": "false"})
@@ -86,7 +88,7 @@ class RuntimeTest(unittest.TestCase):
         from unittest.mock import MagicMock
         client = MagicMock()
         client.chat.completions.create.return_value = SimpleNamespace(usage=None)
-        gateway = BudgetGateway({"maxCalls": 2, "maxTokens": 10000, "timeoutSeconds": 1})
+        gateway = BudgetGateway({"maxCalls": 2, "maxTokens": 10000, "timeoutSeconds": 1}, CONNECTION)
         with patch.dict(os.environ, {"SMART_ROUTER_BASE_URL": "http://example.invalid", "SMART_ROUTER_API_KEY": "test"}), patch("openai.OpenAI", return_value=client):
             with self.assertRaises(RuntimeError):
                 gateway.call("smart-worker", [{"role": "user", "content": "x"}])
@@ -98,9 +100,44 @@ class RuntimeTest(unittest.TestCase):
     def test_actual_crewai_with_mock_gateway(self):
         from worker import execute
         with patch.object(BudgetGateway, "call", return_value="Final Answer: A checked summary."):
-            result = execute({**BODY, "mode": "live"})
+            result = execute({**BODY, "mode": "live", "connection": CONNECTION})
         self.assertFalse(result["simulated"])
         self.assertEqual(result["outputs"][0]["output"], "A checked summary.")
+
+    def test_environment_key_cannot_fund_a_call(self):
+        from unittest.mock import MagicMock
+        gateway = BudgetGateway({"maxCalls":1, "maxTokens":10000, "timeoutSeconds":1})
+        with patch.dict(os.environ, {"SMART_ROUTER_API_KEY":"operator-secret", "OPENAI_API_KEY":"operator-secret"}), patch("openai.OpenAI") as client:
+            with self.assertRaises(RuntimeError):
+                gateway.call("test", [{"role":"user", "content":"hello"}])
+            client.assert_not_called()
+        with patch.dict(os.environ, {"QUANTUM_ALLOW_LIVE":"true"}), patch("app.subprocess.Popen") as process:
+            response = self.client.post("/execute", json={**BODY,"mode":"live"}, headers=self.headers)
+            self.assertEqual(response.status_code,403)
+            process.assert_not_called()
+
+    def test_direct_openai_uses_only_selected_key_and_fixed_endpoint(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        client=MagicMock()
+        client.chat.completions.create.return_value=SimpleNamespace(usage=SimpleNamespace(total_tokens=10),choices=[SimpleNamespace(message=SimpleNamespace(content="answer",tool_calls=None))])
+        gateway=BudgetGateway({"maxCalls":1,"maxTokens":10000,"timeoutSeconds":1},CONNECTION)
+        with patch("openai.OpenAI",return_value=client) as constructor:
+            self.assertEqual(gateway.call("test-worker",[{"role":"user","content":"x"}]),"answer")
+            self.assertEqual(constructor.call_args.kwargs["api_key"],CONNECTION["apiKey"])
+            self.assertEqual(constructor.call_args.kwargs["base_url"],"https://api.openai.com/v1")
+            self.assertEqual(constructor.call_args.kwargs["max_retries"],0)
+
+    def test_direct_anthropic_protocol_and_usage(self):
+        from unittest.mock import MagicMock
+        client=MagicMock();client.__enter__.return_value=client
+        client.post.return_value.json.return_value={"content":[{"type":"text","text":"answer"}],"usage":{"input_tokens":4,"output_tokens":6}}
+        gateway=BudgetGateway({"maxCalls":1,"maxTokens":10000,"timeoutSeconds":1},{**CONNECTION,"provider":"anthropic"})
+        with patch("httpx.Client",return_value=client):
+            self.assertEqual(gateway.call("test-worker",[{"role":"system","content":"rules"},{"role":"user","content":"x"}]),"answer")
+        self.assertEqual(client.post.call_args.args[0],"https://api.anthropic.com/v1/messages")
+        self.assertEqual(client.post.call_args.kwargs["headers"]["x-api-key"],CONNECTION["apiKey"])
+        self.assertEqual(gateway.tokens,10)
 
     def test_budget_denies_before_network(self):
         gateway = BudgetGateway({"maxCalls": 1, "maxTokens": 1, "timeoutSeconds": 1})

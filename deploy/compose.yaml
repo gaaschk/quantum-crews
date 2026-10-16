@@ -26,7 +26,6 @@ services:
       QUANTUM_TEST_MODE: ${QUANTUM_TEST_MODE:-false}
       QUANTUM_ALLOW_LIVE: ${QUANTUM_ALLOW_LIVE:-false}
       SMART_ROUTER_BASE_URL: ${SMART_ROUTER_BASE_URL:-https://smart-router.kevingaasch.com}
-      SMART_ROUTER_API_KEY: ${SMART_ROUTER_API_KEY:-}
     healthcheck:
       test: ["CMD", ".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/health',timeout=2)"]
       interval: 5s
@@ -53,6 +52,10 @@ services:
       QUANTUM_ALLOW_LIVE: ${QUANTUM_ALLOW_LIVE:-false}
       QUANTUM_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://127.0.0.1:3180}
       QUANTUM_COOKIE_NAME: qc_deployed_session
+      QUANTUM_PUBLIC_MODE: ${QUANTUM_PUBLIC_MODE:-false}
+      QUANTUM_MAIL_KEY: ${QUANTUM_MAIL_KEY:-}
+      QUANTUM_MAIL_FROM: ${QUANTUM_MAIL_FROM:-}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:3180}
       QUANTUM_CREDENTIAL_KEY: ${QUANTUM_CREDENTIAL_KEY:-}
       QUANTUM_SECURE_COOKIES: ${QUANTUM_SECURE_COOKIES:-false}
     depends_on:

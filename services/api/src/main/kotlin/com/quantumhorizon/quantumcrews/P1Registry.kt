@@ -14,7 +14,7 @@ import java.time.Duration
 import java.util.UUID
 
 @Service
-class Registry(val auth: P1Auth, val json: ObjectMapper,
+class Registry(val auth: P1Auth, val json: ObjectMapper, val models:ModelAccess,
  @Value("\${quantum.runtime-url}") val runtimeUrl: String,
  @Value("\${quantum.runtime-token}") val runtimeToken: String,
  @Value("\${quantum.test-mode}") val testMode: Boolean,
@@ -88,11 +88,13 @@ class RegistryController(val reg: Registry) {
  @PostMapping("/components/{id}/rollback") fun rollback(@PathVariable id:UUID,@RequestBody b:Obj,req:HttpServletRequest):Obj {val a=auth.actor(req,true);return auth.scoped(a){val old=reg.version(id,b.num("targetRevision"));reg.save(a,old.str("kind"),old.str("name"),old.obj("spec"),id,b.num("baseRevision"))}}
  @GetMapping("/proposals") fun proposals(req:HttpServletRequest):List<Obj> {val a=auth.actor(req);return auth.scoped(a){jdbc.queryForList("SELECT * FROM proposals ORDER BY created_at DESC").map(reg::proposal)}}
  @PostMapping("/proposals") fun propose(@RequestBody b:Obj,req:HttpServletRequest):Obj {
-  val a=auth.actor(req,true);if(b.keys.any{it !in setOf("prompt","agentId","mode")}) fail(400,"Unsupported proposal fields")
+  val a=auth.actor(req,true);if(b.keys.any{it !in setOf("prompt","agentId","mode","connectionId","plannerModel","workerModel")}) fail(400,"Unsupported proposal fields")
   val prompt=b.str("prompt").trim();if(prompt.length !in 1..4000) fail(400,"Describe the proposed change in 1–4000 characters")
   val mode=reg.mode(b);val id=(b["agentId"] as? String)?.let(::uuid)
   val base=auth.scoped(a){id?.let{reg.version(it)}};if(base!=null && base["kind"]!="agent") fail(400,"P1 proposals support team members")
-  val candidate=reg.runtime("propose",mapOf("prompt" to prompt,"base" to base,"mode" to mode),45)
+  val modelConfiguration=if(mode=="live") reg.models.configuration(a,b) else null
+  val credentials= modelConfiguration?.let{reg.models.resolve(a,it)}
+  val candidate=reg.runtime("propose",mapOf("prompt" to prompt,"base" to base,"mode" to mode,"connection" to credentials),60)
   val proposed=mapOf("name" to candidate.str("name"),"spec" to mapOf("role" to candidate.str("role"),"instructions" to candidate.str("instructions")))
   val renewed=auth.actor(req,true);if(renewed.orgId!=a.orgId) fail(409,"Organization changed while generating the proposal")
   return auth.scoped(renewed) {
