@@ -46,9 +46,24 @@ def verified(repo, sha, token):
                and item['status'] == 'completed' and item['conclusion'] == 'success' for item in data['workflow_runs'])
 
 
+def docker_environment(root):
+    env = dict(os.environ)
+    if os.uname().sysname == 'Darwin':
+        # Public images need no login keychain. Preserve the selected Docker daemon.
+        endpoint = subprocess.check_output(
+            ['docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], text=True).strip()
+        config = root / 'docker-config'
+        config.mkdir(mode=0o700, exist_ok=True)
+        (config / 'config.json').write_text(json.dumps({
+            'auths': {}, 'cliPluginsExtraDirs': ['/opt/homebrew/lib/docker/cli-plugins']}))
+        env.update(DOCKER_CONFIG=str(config), DOCKER_HOST=endpoint)
+        env.pop('DOCKER_CONTEXT', None)
+    return env
+
+
 def compose(release, root, sha, *args, **kwargs):
     return run(['docker', 'compose', '--env-file', str(root / 'deployment.env'), '-f', str(release / 'deploy/compose.yaml'), *args],
-               env=dict(os.environ, QC_RELEASE=sha), **kwargs)
+               env=dict(docker_environment(root), QC_RELEASE=sha), **kwargs)
 
 
 def deploy(root, repo):

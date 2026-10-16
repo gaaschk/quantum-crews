@@ -16,6 +16,16 @@ class DeploymentTests(unittest.TestCase):
    self.assertIn('QUANTUM_ALLOW_LIVE=false',content)
    self.assertIn('QUANTUM_TEST_MODE=false',content)
    self.assertEqual(manage.initialize(root).read_text(),content)
+ def test_headless_docker_keeps_daemon_without_keychain(self):
+  with tempfile.TemporaryDirectory() as directory:
+   with patch.object(manage.os, 'uname') as uname, patch.object(manage.subprocess, 'check_output', return_value='unix:///tmp/colima.sock\n'):
+    uname.return_value.sysname='Darwin'
+    env=manage.docker_environment(Path(directory))
+   self.assertEqual(env['DOCKER_HOST'],'unix:///tmp/colima.sock')
+   self.assertNotIn('DOCKER_CONTEXT',env)
+   config=manage.json.loads((Path(env['DOCKER_CONFIG'])/'config.json').read_text())
+   self.assertEqual(config['auths'],{})
+   self.assertNotIn('credsStore',config)
  def test_ci_must_match_exact_main_push_commit(self):
   result={'workflow_runs':[{'head_sha':'good','event':'push','head_branch':'main','status':'completed','conclusion':'success'}]}
   with patch.object(manage,'github',return_value=result):

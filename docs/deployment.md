@@ -58,3 +58,5 @@ Inspect deploy.log/deploy.err and current.json in the deployment root. Backups a
 Application replacement has brief downtime. In-flight jobs can become uncertain and are failed after their lease expires, rather than replayed. Prefer deploying when no runs are active; graceful drain/zero-downtime migration are later improvements.
 
 GitHub branch protection should require `Verify` before merging to main. The pull controller independently checks CI for the exact main SHA even if branch protection is unavailable. Disable the LaunchAgent to pause automatic deployment; do not delete the volume or backup files.
+
+On macOS, the controller uses a separate Docker configuration for anonymous public-image pulls, preserving the selected daemon endpoint. It does not access the interactive login keychain or alter your normal Docker credentials.
