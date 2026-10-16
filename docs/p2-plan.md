@@ -1,14 +1,14 @@
-# P2 — Reuse and collaboration
+# P2 — Public accounts, BYOK, reuse and collaboration
 
-Status: P2 implementation plan, not shipped P2 functionality. P1 now implements the authenticated, persisted manual/AI-proposal/team/run journey; its deterministic API journey passed approximately 80 HTTP assertions (polling affects the count). The separately approved live smart-orchestrator proposal and two-task CrewAI/smart-worker run passed on October 16, 2026; see p1-acceptance.md. This verifies the tested path, not all providers or execution modes. Reconcile any subsequent P1 changes before starting these milestones.
+Status: P2 started. The first increment implements private encrypted model-connection management; public signup verification and credential-backed execution are not shipped yet. P1 now implements the authenticated, persisted manual/AI-proposal/team/run journey; its deterministic API journey passed approximately 80 HTTP assertions (polling affects the count). The separately approved live smart-orchestrator proposal and two-task CrewAI/smart-worker run passed on October 16, 2026; see p1-acceptance.md. This verifies the tested path, not all providers or execution modes. Reconcile any subsequent P1 changes before starting these milestones.
 
 ## Outcome and scope
 
 A person can find saved work, reopen a team, reuse an existing team member or task, and collaborate with another person in a shared organization. Everyone can see which organization they are working in and which saved revisions a team uses. The home page stays focused on starting a job and returning to recent work; the editor remains on its own workspace page.
 
-P2 includes organization administration and invitations, searchable tenant-local libraries, recent teams and runs, explicit revision-aware reuse, and conflict-safe collaborative editing. Collaboration means people sharing saved definitions and runs with optimistic concurrency; it does not require simultaneous cursor presence or live multi-user canvas editing.
+P2 includes public signup with verified email and recovery, BYOK for smart-ai-router or supported direct providers, organization administration and invitations, searchable tenant-local libraries, recent teams and runs, explicit revision-aware reuse, and conflict-safe collaborative editing. Collaboration means people sharing saved definitions and runs with optimistic concurrency; it does not require simultaneous cursor presence or live multi-user canvas editing.
 
-P2 excludes external tools, new workflow kinds, schedules, dynamic teams, cross-organization copying/sharing, public links, billing, marketplace discovery, and a second runtime. Manual and AI editing of existing P1 kinds retain the same validation and approval paths. Live external identity/email integrations and deployment require separate authorization.
+P2 excludes external tools, new workflow kinds, schedules, dynamic teams, cross-organization copying/sharing, public links, billing, marketplace discovery, and a second runtime. Manual and AI editing of existing P1 kinds retain the same validation and approval paths. Existing Mac mini deployment is authorized; public exposure waits for the release gate below. Email delivery configuration, paid calls, and consequential repository/release actions require their specific authorization.
 
 ## Entry gate: prove P1 first
 
@@ -114,43 +114,57 @@ Membership revocation blocks new protected operations. It does not rewrite compl
 
 ## Implementation milestones and order
 
-### P2.1 — Contract reconciliation and read-only discovery
+### P2.1 — Public account identity
+
+Keep the existing account and Personal-organization transaction. Add expiring, hashed, single-use email-verification and password-reset tokens, durable rate limits, generic account-recovery responses, session revocation, and verified-identity gates for invitations/model use. Do not grandfather unverified P1 identities as verified. Choose/configure an email delivery service with operator credentials; development tests capture mail locally without exposing tokens in production responses/logs. Keep manual authoring available without model credentials. Finish accessible signup, verification, resend, recovery, and expiry/error UI.
+
+Exit: replay/expiry/concurrent redemption and enumeration tests pass; verified identity survives restart; existing sessions/accounts migrate safely; real delivery is verified before opening signup publicly.
+
+### P2.2 — BYOK connections and execution
+
+First increment: private connection create/list/replace-key/delete operations under the current active organization, exact owner checks, forced RLS on organization and owner, AES-256-GCM with authenticated identity/provider binding, no plaintext persistence or key readback, and a quiet Connections settings page. Support smart-router, OpenAI, and Anthropic as explicit choices. Fail closed without a valid operator encryption key. Saving does not call providers or certify compatibility.
+
+Next increment: require an explicit authorized connection for live proposals and runs, pin non-secret provider/model configuration in snapshots, resolve secrets immediately before dispatch, and strip runtime platform-key fallback. Implement fixed endpoint adapters for router and direct providers, require planner/worker model selection for direct providers, redact provider errors, enforce budgets, and recheck revocation and user membership at dispatch. No key means manual use only. Organization-wide connection sharing is deferred until explicit grants and audit are implemented; initial keys remain private even to other organization owners.
+
+Exit: tenant/user isolation, tampering, revocation, restart, missing-key, wrong-key, no-fallback, snapshot-redaction, and provider-double tests pass. Live provider calls require bounded authorization and are reported separately from simulated checks. Document master-key backup and rotation; loss of the key makes stored credentials unrecoverable.
+
+### P2.3 — Contract reconciliation and read-only discovery
 
 Recheck the baseline above against P1 migrations and tests. Define the existing-list pagination response change and update its web callers together. Add name/kind search first; description/tag search follows an explicit validated metadata schema migration. Add recent-team/run summary queries. Separate active-session switching from default preference saving. Verify no dependency can be resolved across organizations.
 
 Exit: seeded components can be found by name/tag/kind; pages are stable; two-tenant negative tests pass, including counts and cursors.
 
-### P2.2 — Calm home and library
+### P2.4 — Calm home and library
 
 Add compact organization/account controls, recent work on Home, and Library filters/search with empty/loading/error states. Opening a team navigates to the separate workspace. Omit version/tag clutter from Home and expose detail where needed. Cancel outdated requests on organization switches and show no stale content.
 
 Exit: users find and reopen saved work after reload; switching organizations never briefly displays the previous organization's cards or results; manual creation is available during AI failure.
 
-### P2.3 — Revision-aware reuse and conflict recovery
+### P2.5 — Revision-aware reuse and conflict recovery
 
 Add component previews, add-existing-member/task controls, dependency usage, and explicit dependency updates. Preserve unsaved edits when saves conflict; show current versus proposed fields and allow a deliberate retry. Reuse the proposal diff UI where practical, with no automatic reapproval.
 
 Exit: two editors cannot overwrite each other; saved crew references change only through explicit saves; old snapshots remain identical after source updates.
 
-### P2.4 — Shared organization administration
+### P2.6 — Shared organization administration
 
 Implement shared organization creation, membership views, explicit defaults, and guarded role/removal operations. Add transactional owner transfer and administrative audit records. Test concurrent last-owner changes.
 
 Exit: owner, admin, member, and viewer behavior matches the permission table; users retain Personal access after leaving a shared organization; forged client roles fail server-side.
 
-### P2.5 — Invitations
+### P2.7 — Invitations
 
 Implement expiring, single-use invitation creation, acceptance, and revocation with the identity gate described above. Show a clear accepting-organization confirmation before joining. Keep token-bearing URLs out of analytics, application logs, and referrers; remove tokens from browser history after exchange. No email delivery integration in this milestone.
 
 Exit: wrong identity, expired/revoked tokens, replay, concurrent acceptance, and privilege escalation fail safely; valid acceptance produces one membership and does not move Personal work.
 
-### P2.6 — Integrated verification and release gate
+### P2.8 — Integrated verification and public release gate
 
 Run a browser journey with two users collaborating in a shared organization, creating/reusing definitions, encountering a real revision conflict, running a saved team using the P1 test gateway, and revoking access. Include a viewer and isolated Personal organizations. Use real PostgreSQL for tenancy, transactional races, and persistence. No additional paid model calls are required to prove P2 collaboration.
 
 Exit: all acceptance checks pass; migrations are verified on a copy of the existing local database; README describes shipped behavior and limitations; deployment remains separately authorized.
 
-P2.1 precedes P2.2/P2.3. P2.4 can proceed alongside library UI once P1 permission contracts are stable; P2.5 depends on P2.4 and usable identity verification. P2.6 integrates all milestones. The owner/tenant authorization layer must land before exposing membership controls.
+P2.1 identity and P2.2 model connections precede public release. Discovery and reuse can follow independently once tenant contracts are stable. Membership administration precedes invitations. P2.8 integrates all milestones and gates public routing.
 
 ## Acceptance matrix
 
@@ -167,3 +181,26 @@ P2.1 precedes P2.2/P2.3. P2.4 can proceed alongside library UI once P1 permissio
 ## Decisions to resolve during P2.1
 
 Choose a production verified-email identity path before enabling real invitation acceptance; local password authentication alone is insufficient evidence of email ownership. Define the new admin permission mapping, pagination envelopes/cursor format, description/tag metadata migration, and whether member-visible identity can be limited to display name plus role. Preserve P1's dispatch-time membership recheck and document already-running-job behavior. Separate default preference from organization switching explicitly. Prefer existing P1 primitives and small additions. These choices must not weaken Personal privacy, pinned versions, or immutable snapshots.
+
+## Software delivery reference and subsequent roadmap
+
+The architecture's software delivery crew is the reference for every phase. P2 supports its manual roles, shared definitions, review artifacts, and individual model connections; it does not claim autonomous software delivery.
+
+| Phase | Reference scenario delivered |
+|---|---|
+| P1 (complete) | Create team members/tasks, approve proposals, save a crew, execute a bounded tool-free run, inspect immutable results. |
+| P2 (started) | Public verified accounts, BYOK, reusable teams, shared organizations, conflict-safe edits, and isolated collaboration. |
+| P3 | Versioned PI/sprint/story/design/QA artifacts; typed flows, conditions and validators; bounded QA→development rework; human acceptance and durable approval/resume. |
+| P4 | Scoped repository tools in isolated checkouts; development creates reviewable PRs; QA attaches evidence; explicit human merge/deploy gates and tool audits. |
+| P5 | Hybrid delivery flow with ephemeral specialists, registry discovery, policy/budget reservations across delegation, and promotion of reusable crews. |
+| P6+ | Operational scale, stronger sandboxing, another runtime adapter, richer observability, and verified production delivery templates. |
+
+Public release additionally requires HTTPS/secure cookies, verified email/recovery, durable anti-abuse limits, encrypted credential backup/rotation, no server-funded model fallback, redacted diagnostics, and tests proving users cannot reach another user's keys or tenant work. Publish quantum-crews.kevingaasch.com only after this gate passes. The previously prepared single-email Cloudflare Access application must not be activated as the public signup model.
+
+## PI pull request and preview delivery requirements
+
+Each PI, including P2, must have a branch and PR with its objective, delivered and remaining scope, acceptance checks, QA evidence, and product-owner review. Start a draft when work remains. Never push PI implementation directly to main. Smaller PR increments are allowed; retain a PI integration PR linking their results. P2's first PR covers the BYOK foundation and revised roadmap, not a claim that the entire public-account PI is finished.
+
+Add Review PR, Download, Install preview, and Promote release to the delivery experience in P4. Download exact-SHA source and CI-built platform artifacts with checksum/provenance and licenses. Install preview only after successful checks and explicit target-specific human approval; verify the approved head has not changed. Use an isolated Mac mini environment, separate database/ports/secrets, and synthetic data. Show queued/installing/healthy/failed/removed state, installed SHA, health and logs; failed previews cannot replace production. Uninstall and rollback must be tested. Promotion follows review, human approval, merge and main CI. No public PR job receives target credentials or production secrets.
+
+Acceptance: stale head/digest, failed checks, unauthorized user/target, replayed approval and untrusted artifacts are rejected; two previews cannot collide; preview failure/uninstall leaves production intact; downloaded packages reproduce the named revision. P2 documents this contract; P4 implements application-managed download/install-preview rather than implying it already exists.

@@ -60,3 +60,9 @@ Application replacement has brief downtime. In-flight jobs can become uncertain 
 GitHub branch protection should require `Verify` before merging to main. The pull controller independently checks CI for the exact main SHA even if branch protection is unavailable. Disable the LaunchAgent to pause automatic deployment; do not delete the volume or backup files.
 
 On macOS, the controller uses a separate Docker configuration for anonymous public-image pulls, preserving the selected daemon endpoint. It does not access the interactive login keychain or alter your normal Docker credentials.
+
+## P2 model connection storage (first increment)
+
+Set `QUANTUM_CREDENTIAL_KEY` in the private deployment environment to a base64-encoded 32-byte random key before saving connections. Keep it outside Git and the database, back it up separately, and preserve it across releases. The API fails closed if it is missing or malformed; the application and manual building still start normally. Losing or replacing it makes existing connection ciphertext unreadable. Key rotation requires decrypt/re-encrypt under controlled maintenance and is not implemented yet. Never print this environment or copy it into an execution snapshot.
+
+Connections are private to their creator within the active organization. The settings page stores, replaces, and removes keys but does not validate them or execute model calls. Live execution continues to be disabled on the deployed service. Public signup verification, recovery, durable anti-abuse limits, connection-backed runtime dispatch, and the public release gate remain pending. Do not expose the P1 sign-in service publicly or enable environment-funded calls as a substitute for BYOK.

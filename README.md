@@ -70,3 +70,7 @@ See [architecture](docs/architecture.md), [P1 acceptance evidence](docs/p1-accep
 Original Quantum Crews source is [MIT licensed](LICENSE), copyright Quantum Horizon Innovations. Third-party software retains its own licenses; see [NOTICE](NOTICE).
 
 The public GitHub repository and Mac mini pull-based container pipeline are described in [deployment operations](docs/deployment.md). Pull requests use GitHub-hosted CI; the mini deploys only exact main commits that passed CI. Deployment is initially loopback-only, with live model execution disabled.
+
+### P2 started
+
+The software delivery crew is the reference scenario in `docs/architecture.md`; the updated `docs/p2-plan.md` places verified public accounts and BYOK before public release. The first increment adds private encrypted model-connection storage and `/settings/connections` for smart-ai-router, OpenAI, and Anthropic. Set `QUANTUM_CREDENTIAL_KEY` privately as described in `docs/deployment.md`. Saving a key does not validate it or enable execution. Public identity, credential-backed dispatch, and public access are not shipped yet.
