@@ -55,7 +55,7 @@ def docker_environment(root):
         config = root / 'docker-config'
         config.mkdir(mode=0o700, exist_ok=True)
         (config / 'config.json').write_text(json.dumps({
-            'auths': {}, 'cliPluginsExtraDirs': ['/opt/homebrew/lib/docker/cli-plugins']}))
+            'auths': {}, 'cliPluginsExtraDirs': [str(Path.home() / '.docker/cli-plugins'), '/opt/homebrew/lib/docker/cli-plugins']}))
         env.update(DOCKER_CONFIG=str(config), DOCKER_HOST=endpoint)
         env.pop('DOCKER_CONTEXT', None)
     return env
