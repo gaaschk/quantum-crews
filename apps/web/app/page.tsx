@@ -1,3 +1,4 @@
+import ReleaseStatus from "./release-status";
 import JobStarter from "./job-starter";
 export const dynamic = "force-dynamic";
 async function servicesReady() {
@@ -9,5 +10,5 @@ export default async function Home() {
  return <main><header><a href="/" className="brand">Quantum <strong>Crews</strong><span className="brand-dot" aria-hidden="true">✳</span></a><a className="text-button" href="/workspace">Open workspace ↗</a></header>
  <section className="intro"><p className="eyebrow">YOUR WORK, WITH A LITTLE HELP</p><h1>Good work starts<br/>with a great team.</h1><p>Tell us what you have in mind. Make it yours, one step at a time.</p></section>
  <JobStarter/>
- <footer><span>by Quantum Horizon Innovations</span><div><span role="status" className={ready ? "service-ready" : ""}>{ready ? "Services are ready" : "Services are unavailable — reload after startup"}</span><a href="/signin" className="text-button">Sign in or create an account</a></div></footer></main>;
+ <footer><ReleaseStatus/><span>by Quantum Horizon Innovations</span><div><span role="status" className={ready ? "service-ready" : ""}>{ready ? "Services are ready" : "Services are unavailable — reload after startup"}</span><a href="/signin" className="text-button">Sign in or create an account</a></div></footer></main>;
 }

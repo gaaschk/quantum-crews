@@ -66,6 +66,10 @@ class RuntimeTest(unittest.TestCase):
         self.assertIn("SIMULATED", result["outputs"][0]["output"])
         self.assertEqual(result["usage"]["calls"], 0)
 
+    def test_health_reports_baked_source_revision(self):
+        with patch.dict(os.environ,{"QUANTUM_SOURCE_REVISION":"a"*40}):
+            self.assertEqual(self.client.get("/health").json()["revision"],"a"*40)
+
     def test_health_identifies_lock(self):
         import hashlib
         from pathlib import Path

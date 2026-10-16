@@ -19,6 +19,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/runtime.Dockerfile
+      args:
+        SOURCE_REVISION: ${QC_RELEASE:-local}
     restart: unless-stopped
     init: true
     environment:
@@ -36,6 +38,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/api.Dockerfile
+      args:
+        SOURCE_REVISION: ${QC_RELEASE:-local}
     restart: unless-stopped
     init: true
     environment:
@@ -71,6 +75,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/web.Dockerfile
+      args:
+        SOURCE_REVISION: ${QC_RELEASE:-local}
     restart: unless-stopped
     init: true
     ports:

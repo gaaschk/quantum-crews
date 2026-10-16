@@ -142,7 +142,7 @@ def cancel(body: Cancel):
 
 @app.get("/health")
 def health():
-    return {"status": "ready", "adapter": "crewai", "version": version("crewai"), "lockSha256": hashlib.sha256(Path(__file__).with_name("uv.lock").read_bytes()).hexdigest(), "executionEnabled": bool(os.getenv("QUANTUM_RUNTIME_TOKEN"))}
+    return {"status": "ready", "revision": os.getenv("QUANTUM_SOURCE_REVISION", "local"), "adapter": "crewai", "version": version("crewai"), "lockSha256": hashlib.sha256(Path(__file__).with_name("uv.lock").read_bytes()).hexdigest(), "executionEnabled": bool(os.getenv("QUANTUM_RUNTIME_TOKEN"))}
 
 @app.post("/execute", dependencies=[Depends(authorize)])
 def execute(body: Execution):
